@@ -1,0 +1,75 @@
+# Eclipse / Java build output
+bin/
+target/
+*.class
+
+# Local secret configuration
+config.properties
+.env
+*.env
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE / OS temporary files
+.metadata/
+.DS_Store
+Thumbs.db
+
+# BookMarket v2 server local secrets
+server/.env.local
+
+# Sensitive settings and credentials
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+*service-account*.json
+# Build outputs / local tools
+**/target/
+**/build/
+**/.idea/
+**/.vscode/
+*.class
+*.log
+# Data, backups, personal local files
+backups/
+submission/
+logs/
+*.dump
+*.sql.gz
+*.txt.gz
+*.csv
+*.sqlite
+*.db
+*.zip
+*.war
+# OS
+.DS_Store
+Thumbs.db
+
+# BookMarket submission safety
+**/backups/
+**/*-backup-*/
+README.backup-*.md
+**/*.log
+**/*.pem
+**/*.p12
+**/*.pfx
+**/*.jks
+**/*.key
+**/node_modules/
+**/.DS_Store
+**/book.txt
+**/*.gz
+**/*.zip
+**/*.war
