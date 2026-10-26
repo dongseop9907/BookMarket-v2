@@ -191,3 +191,13 @@ mvn.cmd -B -ntp 'org.codehaus.mojo:exec-maven-plugin:3.5.1:java' '-Dexec.mainCla
 *University Software Project*
 
 </div>
+
+<!-- BM_PAGES_DEMO_START -->
+## Interactive web demo
+
+**[Open BookMarket v2 browser demo](https://dongseop9907.github.io/BookMarket-v2/)**
+
+The browser demo is a **standalone interactive showcase** of the desktop project. Its sample books, cart, orders, and admin overview run in the browser only. They **do not** connect to the Tomcat API, change Supabase data, process payments, or demonstrate production authentication.
+
+The original coursework implementation is Java Swing -> Apache Tomcat (Servlet REST API) -> Supabase PostgreSQL, available in `src/` and `server/`.
+<!-- BM_PAGES_DEMO_END -->
