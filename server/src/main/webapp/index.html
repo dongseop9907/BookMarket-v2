@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BookMarket v2 | 온라인 서점</title>
+<style>
+:root{font-family:system-ui,"Malgun Gothic",sans-serif;color:#18253b;background:#f4f6fa}*{box-sizing:border-box}
+body{margin:0}header{background:#1e2a3f;color:white;padding:20px max(20px,calc((100vw - 1150px)/2));display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{font-size:28px;margin:0}h2{font-size:22px;margin:0 0 15px}button,input,textarea{font:inherit}button{cursor:pointer;border:1px solid #cbd4e4;background:white;color:#1b2945;border-radius:6px;padding:10px 14px}
+button.primary{background:#385fdf;border-color:#385fdf;color:white}button:disabled{opacity:.5;cursor:default}button:hover:not(:disabled){filter:brightness(.95)}
+main{max-width:1150px;margin:28px auto;padding:0 18px}.panel{background:white;border:1px solid #e0e6ef;border-radius:12px;padding:22px;margin-bottom:18px}
+#loginView{max-width:430px;margin:55px auto}label{display:block;margin:14px 0 6px;font-weight:600}
+input,textarea{width:100%;padding:11px;border:1px solid #c9d2df;border-radius:6px}textarea{min-height:75px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px}.toolbar input{flex:1;min-width:180px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(225px,1fr));gap:15px}.book{border:1px solid #e0e6ee;border-radius:10px;padding:15px;min-height:270px;display:flex;flex-direction:column}
+.book img{width:86px;height:122px;object-fit:contain;background:#f4f5f7;align-self:center}.book h3{font-size:15px;margin:12px 0 5px;overflow-wrap:anywhere}
+.book p{font-size:13px;color:#67748c;margin:3px 0}.book .price{font-weight:700;color:#243d88;margin-top:auto;padding:11px 0}
+.row{display:flex;justify-content:space-between;gap:8px;align-items:center;margin:8px 0}.muted{color:#66758d;font-size:13px}#message{min-height:1.5em;color:#b13333}
+#appView,#cartView,#ordersView{display:none}#userbar{display:none;gap:8px;align-items:center;flex-wrap:wrap}
+.small{padding:5px 10px} .cartline{padding:10px 0;border-bottom:1px solid #eee}
+@media(max-width:600px){header{display:block}#userbar{margin-top:12px}main{margin-top:16px}}
+</style></head><body>
+<header><div><h1>BOOK MARKET</h1><div class="muted" style="color:#c5d1e8">Java Swing · Tomcat REST API · Supabase</div></div>
+<div id="userbar"><span id="username"></span><button id="catalogNav">도서 쇼핑</button><button id="cartNav">장바구니 <span id="cartCount">0</span></button><button id="ordersNav">주문 내역</button><button id="logoutBtn">로그아웃</button></div></header>
+<main><p id="message" role="status" aria-live="polite"></p>
+<section id="loginView" class="panel"><h2>로그인</h2><p class="muted">기존 BookMarket 계정으로 로그인하세요.</p><form id="loginForm">
+<label for="email">이메일</label><input id="email" type="email" autocomplete="username" required>
+<label for="password">비밀번호</label><input id="password" type="password" autocomplete="current-password" required>
+<p><button class="primary" type="submit" style="width:100%">로그인</button></p></form>
+<p class="muted">이 화면은 Tomcat에 배포된 원본 BookMarket API를 사용합니다. 별도의 예시 데이터가 아닙니다.</p></section>
+<section id="appView"><div class="panel"><h2>도서 쇼핑</h2><form id="searchForm" class="toolbar">
+<input id="query" placeholder="도서명 · 저자 · ISBN" maxlength="100"><button class="primary" type="submit">검색</button><button id="resetSearch" type="button">초기화</button></form>
+<p id="catalogSummary" class="muted"></p><div id="books" class="grid"></div>
+<div class="row" style="margin-top:20px"><button id="prevBtn">이전</button><span id="pages"></span><button id="nextBtn">다음</button></div></div></section>
+<section id="cartView" class="panel"><h2>장바구니</h2><div id="cartItems"></div><div class="row"><strong>총 금액</strong><strong id="cartTotal">0원</strong></div>
+<form id="checkoutForm"><label for="shipping">배송 주소</label><textarea id="shipping" maxlength="500" required placeholder="배송 주소를 입력하세요"></textarea>
+<p class="muted">실제 결제는 진행되지 않으며 주문은 PENDING(결제 전) 상태로 접수됩니다. 주문 시 실제 DB 재고가 변경됩니다.</p>
+<button class="primary" type="submit">주문 접수하기</button></form></section>
+<section id="ordersView" class="panel"><h2>내 주문 내역</h2><div id="orders"></div></section></main>
+<script>
+"use strict";
+const el=id=>document.getElementById(id), won=n=>Number(n).toLocaleString("ko-KR")+"원";
+let page=1,totalPages=1,query="",cart=new Map(),view="login";
+function msg(s){el("message").textContent=s||""}
+async function api(path,options={}){
+ const r=await fetch("api/"+path,{credentials:"same-origin",cache:"no-store",...options});
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok)throw new Error(data.message||data.error||"요청 실패 ("+r.status+")");
+ return data;
+}
+function show(which){view=which;for(const id of ["loginView","appView","cartView","ordersView"])el(id).style.display=id===which?"block":"none";el("userbar").style.display=which==="loginView"?"none":"flex";msg("")}
+const make=(tag,txt,cls)=>{const x=document.createElement(tag);if(txt!=null)x.textContent=txt;if(cls)x.className=cls;return x};
+async function books(){
+ try{const data=await api("books?limit=20&page="+page+"&q="+encodeURIComponent(query));
+ totalPages=data.totalPages||1;el("catalogSummary").textContent="전체 "+data.total.toLocaleString()+"권 · 현재 "+(data.items||[]).length+"권 표시";
+ el("pages").textContent=page+" / "+totalPages;el("prevBtn").disabled=page<=1;el("nextBtn").disabled=page>=totalPages;
+ el("books").replaceChildren();
+ for(const b of data.items||[]){
+ const box=make("article",null,"book");
+ if(b.thumbnail_url && /^https:\/\//.test(b.thumbnail_url)){const img=document.createElement("img");img.src=b.thumbnail_url;img.alt="도서 표지";img.loading="lazy";box.append(img)}
+ box.append(make("h3",b.title||"제목 없음"),make("p",b.author||"저자 정보 없음"),make("p","재고 "+b.stock+"권"));
+ box.append(make("div",won(b.price),"price"));
+ const btn=make("button","장바구니 담기");btn.disabled=b.stock<=0;
+ btn.onclick=()=>{const existing=cart.get(b.id);const qty=existing?existing.qty:0;if(qty>=b.stock){msg("재고 수량을 초과할 수 없습니다.");return}cart.set(b.id,{book:b,qty:qty+1});updateCount();msg("장바구니에 담았습니다.")};
+ box.append(btn);el("books").append(box)
+ }
+ }catch(e){msg(e.message)}
+}
+function updateCount(){let n=0;for(const c of cart.values())n+=c.qty;el("cartCount").textContent=n}
+function renderCart(){
+ show("cartView");const root=el("cartItems");root.replaceChildren();let total=0;
+ for(const [id,c] of cart){const row=make("div",null,"row cartline");const title=make("span",c.book.title+" · "+won(c.book.price)+" × "+c.qty);
+ const actions=make("div");for(const [txt,change] of [["−",-1],["+",1],["삭제",0]]){const btn=make("button",txt,"small");btn.onclick=()=>{if(change===0||c.qty+change<=0)cart.delete(id);else if(c.qty+change<=c.book.stock)c.qty+=change;else{msg("재고를 초과했습니다.");return}updateCount();renderCart()};actions.append(btn)}
+ row.append(title,actions);root.append(row);total+=c.book.price*c.qty}
+ if(!cart.size)root.append(make("p","장바구니가 비어 있습니다.","muted"));
+ el("cartTotal").textContent=won(total);el("checkoutForm").style.display=cart.size?"block":"none"
+}
+async function renderOrders(){
+ show("ordersView");el("orders").textContent="조회 중...";
+ try{const data=await api("orders/");el("orders").replaceChildren();
+ if(!(data.items||[]).length)el("orders").append(make("p","주문 내역이 없습니다."));
+ for(const o of data.items){const line=make("div",null,"row cartline");line.append(make("span",o.orderId.slice(0,8)+" · "+won(o.totalPrice)+" · "+o.status+" · "+new Date(o.createdAt).toLocaleString("ko-KR")));
+ if(o.status==="PENDING"){const btn=make("button","주문 취소","small");btn.onclick=async()=>{if(!confirm("이 주문을 취소할까요?"))return;try{await api("orders/"+o.orderId+"/cancel",{method:"POST",headers:{"X-BookMarket-Request":"1"}});await renderOrders()}catch(e){msg(e.message)}};line.append(btn)}
+ el("orders").append(line)}
+ }catch(e){el("orders").textContent="";msg(e.message)}
+}
+el("loginForm").onsubmit=async event=>{event.preventDefault();msg("");try{
+ const data=await api("auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:el("email").value,password:el("password").value})});
+ el("password").value="";el("username").textContent=data.user?.name||data.user?.email||"회원";show("appView");await books()
+}catch(e){msg(e.message)}};
+el("searchForm").onsubmit=e=>{e.preventDefault();query=el("query").value.trim();page=1;books()};
+el("resetSearch").onclick=()=>{el("query").value="";query="";page=1;books()};
+el("prevBtn").onclick=()=>{if(page>1){page--;books()}};el("nextBtn").onclick=()=>{if(page<totalPages){page++;books()}};
+el("catalogNav").onclick=()=>{show("appView");books()};el("cartNav").onclick=renderCart;el("ordersNav").onclick=renderOrders;
+el("checkoutForm").onsubmit=async e=>{e.preventDefault();if(!cart.size)return;const items=[...cart.values()].map(c=>({bookId:c.book.id,quantity:c.qty}));
+ if(!confirm("주문을 접수할까요? 실제 DB 재고가 변경됩니다."))return;
+ try{const result=await api("orders/",{method:"POST",headers:{"Content-Type":"application/json","X-BookMarket-Request":"1"},body:JSON.stringify({shippingAddress:el("shipping").value,items})});
+ cart.clear();updateCount();el("shipping").value="";await renderOrders();msg("주문 접수 완료: "+result.orderId+" (결제 전)")
+ }catch(err){msg(err.message)}};
+el("logoutBtn").onclick=async()=>{try{await api("auth/logout",{method:"POST",headers:{"X-BookMarket-Request":"1"}})}catch(e){msg("로그아웃 요청 확인 필요")}cart.clear();updateCount();show("loginView")};
+show("loginView");
+</script></body></html>
