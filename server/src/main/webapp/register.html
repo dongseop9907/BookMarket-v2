@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>회원가입 | BookMarket v2</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f5f9;color:#1f2b43;font-family:system-ui,"Malgun Gothic",sans-serif}
+header{background:#1e2a3f;color:white;padding:20px max(20px,calc((100vw - 920px)/2))}
+header a{color:white;text-decoration:none;font-size:25px;font-weight:700}
+main{max-width:560px;margin:36px auto;padding:0 16px}
+section{background:white;padding:28px;border:1px solid #dae1ed;border-radius:14px;box-shadow:0 10px 30px #152d5210}
+h1{font-size:25px;margin:0 0 8px}.subtitle{color:#5b6b82;margin:0 0 22px}
+label{display:block;margin-top:16px;margin-bottom:6px;font-weight:650}
+input{width:100%;padding:11px 12px;border:1px solid #bbc8dc;border-radius:7px;font:inherit}
+.row{display:flex;gap:8px;align-items:end}.row input{flex:1;min-width:0}
+button{border-radius:7px;border:1px solid #bfcce0;background:white;padding:10px 14px;font:inherit;cursor:pointer;white-space:nowrap}
+button.primary{color:white;background:#385fdf;border-color:#385fdf}button:disabled{opacity:.6;cursor:wait}
+.status{min-height:25px;margin-top:13px;color:#254a97;font-size:14px;white-space:pre-wrap}.hint{font-size:13px;color:#65758d}
+#submit{width:100%;margin-top:23px;padding:13px}
+nav{text-align:center;margin:20px 0}nav a{color:#385fdf}
+</style></head><body>
+<header><a href="./">BOOK MARKET</a></header><main><section>
+<h1>회원가입</h1><p class="subtitle">이메일 인증을 완료한 뒤 계정을 생성합니다.</p>
+<form id="form" autocomplete="on">
+<label for="email">이메일</label><div class="row"><input id="email" name="email" type="email" maxlength="255" autocomplete="email" required><button type="button" id="send">인증번호 발송</button></div>
+<label for="code">이메일 인증번호 (6자리)</label><div class="row"><input id="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="인증번호 입력" required><button type="button" id="verify">인증 확인</button></div>
+<div class="hint">인증번호 유효시간은 10분입니다.</div>
+<label for="name">이름</label><input id="name" autocomplete="name" maxlength="100" required>
+<label for="password">비밀번호</label><input id="password" type="password" autocomplete="new-password" minlength="8" required>
+<div class="hint">8자 이상, 공백 없이 특수문자 1개 이상 포함</div>
+<label for="phone">연락처</label><input id="phone" autocomplete="tel" maxlength="40">
+<label for="address">주소</label><input id="address" autocomplete="street-address" maxlength="300">
+<label for="detailAddress">상세 주소</label><input id="detailAddress" maxlength="300">
+<button class="primary" id="submit" type="submit">회원가입 완료</button>
+<p id="status" class="status" role="status" aria-live="polite"></p>
+</form></section><nav><a href="./">이미 계정이 있나요? 로그인 화면으로</a></nav></main>
+<script>
+"use strict";
+const $=id=>document.getElementById(id), status=s=>{$("status").textContent=s};
+let verifiedEmail="";
+async function request(path,data){
+ const response=await fetch("api/auth/"+path,{method:"POST",credentials:"same-origin",cache:"no-store",headers:{"Content-Type":"application/json","X-BookMarket-Request":"1"},body:JSON.stringify(data)});
+ const result=await response.json().catch(()=>({}));
+ if(!response.ok)throw new Error(result.message||result.error||"요청 실패 ("+response.status+")");
+ return result
+}
+async function action(button,fn){button.disabled=true;status("");try{await fn()}catch(err){status(err.message)}finally{button.disabled=false}}
+$("email").addEventListener("input",()=>{verifiedEmail=""});
+$("send").onclick=()=>action($("send"),async()=>{
+ const email=$("email").value.trim().toLowerCase();if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))throw new Error("이메일을 확인하세요.");
+ await request("email/send",{email});verifiedEmail="";status("인증번호를 발송했습니다. 이메일을 확인해 주세요.")
+});
+$("verify").onclick=()=>action($("verify"),async()=>{
+ const email=$("email").value.trim().toLowerCase(),code=$("code").value.trim();
+ if(!/^\d{6}$/.test(code))throw new Error("6자리 인증번호를 입력하세요.");
+ const result=await request("email/verify",{email,code});
+ if(!result.verified)throw new Error("이메일 인증 실패");
+ verifiedEmail=email;status("이메일 인증이 완료되었습니다.")
+});
+$("form").onsubmit=e=>{e.preventDefault();action($("submit"),async()=>{
+ const email=$("email").value.trim().toLowerCase();
+ if(email!==verifiedEmail)throw new Error("이메일 인증을 먼저 완료하세요.");
+ const password=$("password").value;
+ if(password.length<8||password.includes(" ")||!/[!@#$%^&*()_+=\-[\]{}|;:'",.<>/?`~]/.test(password))throw new Error("비밀번호 조건을 확인하세요.");
+ await request("register",{email,password,name:$("name").value.trim(),phone:$("phone").value.trim(),address:$("address").value.trim(),detailAddress:$("detailAddress").value.trim()});
+ status("회원가입 성공! 로그인 화면으로 이동합니다.");$("form").reset();verifiedEmail="";setTimeout(()=>location.href="./",1200)
+})};
+</script></body></html>
